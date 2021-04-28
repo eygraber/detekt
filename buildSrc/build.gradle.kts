@@ -16,7 +16,7 @@ object Plugins {
     const val KOTLIN = "1.4.32"
     const val DETEKT = "1.16.0"
     const val GITHUB_RELEASE = "2.2.12"
-    const val SHADOW = "6.1.0"
+    const val SHADOW = "7.0.0"
     const val VERSIONS = "0.28.0"
     const val SONAR = "2.8"
     const val DOKKA = "1.4.10"
@@ -29,7 +29,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:${Plugins.KOTLIN}")
     implementation("io.gitlab.arturbosch.detekt:detekt-gradle-plugin:${Plugins.DETEKT}")
     implementation("com.github.breadmoirai:github-release:${Plugins.GITHUB_RELEASE}")
-    implementation("com.github.jengelman.gradle.plugins:shadow:${Plugins.SHADOW}")
+    implementation("gradle.plugin.com.github.jengelman.gradle.plugins:shadow:${Plugins.SHADOW}")
     implementation("com.github.ben-manes:gradle-versions-plugin:${Plugins.VERSIONS}")
     implementation("org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:${Plugins.SONAR}")
     implementation("org.jetbrains.dokka:dokka-gradle-plugin:${Plugins.DOKKA}")
