@@ -19,6 +19,7 @@ internal fun defaultReportMapping(reportId: String) = when (reportId) {
     HtmlOutputReport::class.java.simpleName -> "html"
     SarifOutputReport::class.java.simpleName -> "sarif"
     MdOutputReport::class.java.simpleName -> "md"
+    RuleProfilingOutputReport::class.java.simpleName -> "profiling"
     else -> reportId
 }
 

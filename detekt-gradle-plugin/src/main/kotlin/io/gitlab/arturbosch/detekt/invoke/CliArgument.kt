@@ -11,6 +11,7 @@ private const val INPUT_PARAMETER = "--input"
 private const val CONFIG_PARAMETER = "--config"
 private const val BASELINE_PARAMETER = "--baseline"
 private const val PARALLEL_PARAMETER = "--parallel"
+private const val PROFILING_PARAMETER = "--profiling"
 private const val DISABLE_DEFAULT_RULESETS_PARAMETER = "--disable-default-rulesets"
 private const val BUILD_UPON_DEFAULT_CONFIG_PARAMETER = "--build-upon-default-config"
 private const val AUTO_CORRECT_PARAMETER = "--auto-correct"
@@ -99,6 +100,8 @@ internal sealed class BoolCliArgument(open val value: Boolean, val configSwitch:
 internal data class DebugArgument(override val value: Boolean) : BoolCliArgument(value, DEBUG_PARAMETER)
 
 internal data class ParallelArgument(override val value: Boolean) : BoolCliArgument(value, PARALLEL_PARAMETER)
+
+internal data class ProfilingArgument(override val value: Boolean) : BoolCliArgument(value, PROFILING_PARAMETER)
 
 internal data class DisableDefaultRuleSetArgument(
     override val value: Boolean

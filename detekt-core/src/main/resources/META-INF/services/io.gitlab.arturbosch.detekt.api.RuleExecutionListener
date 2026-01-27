@@ -1,0 +1,2 @@
+# Built-in rule profiling listener is added programmatically by RuleExecutionListenerLocator
+# Additional custom listeners can be registered here

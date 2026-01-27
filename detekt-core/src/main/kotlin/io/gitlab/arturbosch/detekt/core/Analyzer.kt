@@ -7,6 +7,7 @@ import io.gitlab.arturbosch.detekt.api.Config
 import io.gitlab.arturbosch.detekt.api.FileProcessListener
 import io.gitlab.arturbosch.detekt.api.Finding
 import io.gitlab.arturbosch.detekt.api.Rule
+import io.gitlab.arturbosch.detekt.api.RuleExecutionListener
 import io.gitlab.arturbosch.detekt.api.RuleSetId
 import io.gitlab.arturbosch.detekt.api.RuleSetProvider
 import io.gitlab.arturbosch.detekt.api.internal.CompilerResources
@@ -27,16 +28,25 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowValueFactoryImpl
 import kotlin.reflect.full.hasAnnotation
+import kotlin.time.measureTimedValue
 
 private typealias FindingsResult = List<Map<RuleSetId, List<Finding>>>
 
 internal class Analyzer(
     private val settings: ProcessingSettings,
     private val providers: List<RuleSetProvider>,
-    private val processors: List<FileProcessListener>
+    private val processors: List<FileProcessListener>,
+    private val ruleListeners: List<RuleExecutionListener> = emptyList()
 ) {
 
     private val config: Config = settings.spec.workaroundConfiguration(settings.config)
+
+    /**
+     * Indicates whether parallel analysis was disabled due to profiling being enabled.
+     * This can be used to inform users that their parallel setting was overridden.
+     */
+    val parallelDisabledForProfiling: Boolean =
+        settings.spec.executionSpec.parallelAnalysis && ruleListeners.isNotEmpty()
 
     fun run(
         ktFiles: Collection<KtFile>,
@@ -46,8 +56,12 @@ internal class Analyzer(
 
         val dataFlowValueFactory = DataFlowValueFactoryImpl(languageVersionSettings)
         val compilerResources = CompilerResources(languageVersionSettings, dataFlowValueFactory)
+
+        // Force sequential execution when profiling to ensure accurate timing
+        val useParallelAnalysis = settings.spec.executionSpec.parallelAnalysis && ruleListeners.isEmpty()
+
         val findingsPerFile: FindingsResult =
-            if (settings.spec.executionSpec.parallelAnalysis) {
+            if (useParallelAnalysis) {
                 runAsync(ktFiles, bindingContext, compilerResources)
             } else {
                 runSync(ktFiles, bindingContext, compilerResources)
@@ -128,8 +142,19 @@ internal class Analyzer(
 
         fun executeRules(rules: List<BaseRule>) {
             for (rule in rules) {
-                rule.visitFile(file, bindingContext, compilerResources)
-                for (finding in filterSuppressedFindings(rule, bindingContext)) {
+                ruleListeners.forEach { it.beforeRuleExecution(file, rule) }
+
+                val (_, duration) = measureTimedValue {
+                    rule.visitFile(file, bindingContext, compilerResources)
+                }
+
+                val filteredFindings = filterSuppressedFindings(rule, bindingContext)
+
+                if (ruleListeners.isNotEmpty()) {
+                    ruleListeners.forEach { it.afterRuleExecution(file, rule, filteredFindings.size, duration) }
+                }
+
+                for (finding in filteredFindings) {
                     val mappedRuleSet = checkNotNull(ruleIdsToRuleSetIds[finding.id]) {
                         "Mapping for '${finding.id}' expected."
                     }

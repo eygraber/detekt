@@ -18,4 +18,10 @@ interface ExecutionSpec {
      * Uses [executorService] to run rules in parallel.
      */
     val parallelAnalysis: Boolean
+
+    /**
+     * Enables rule-level profiling to measure execution time of individual rules.
+     * When enabled, parallel analysis is automatically disabled to ensure accurate timing.
+     */
+    val profiling: Boolean
 }

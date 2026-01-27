@@ -50,6 +50,7 @@ internal fun CliArgs.createSpec(output: Appendable, error: Appendable): Processi
         execution {
             parallelParsing = args.parallel
             parallelAnalysis = args.parallel
+            profiling = args.profiling
         }
 
         extensions {

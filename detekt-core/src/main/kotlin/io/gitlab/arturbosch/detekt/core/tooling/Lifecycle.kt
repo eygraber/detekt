@@ -4,6 +4,8 @@ import io.gitlab.arturbosch.detekt.api.Config
 import io.gitlab.arturbosch.detekt.api.Detektion
 import io.gitlab.arturbosch.detekt.api.FileProcessListener
 import io.gitlab.arturbosch.detekt.api.Finding
+import io.gitlab.arturbosch.detekt.api.RuleExecutionListener
+import io.gitlab.arturbosch.detekt.api.RuleProfilingKeys
 import io.gitlab.arturbosch.detekt.api.RuleSetId
 import io.gitlab.arturbosch.detekt.api.RuleSetProvider
 import io.gitlab.arturbosch.detekt.api.UnstableApi
@@ -14,6 +16,7 @@ import io.gitlab.arturbosch.detekt.core.ProcessingSettings
 import io.gitlab.arturbosch.detekt.core.config.validation.checkConfiguration
 import io.gitlab.arturbosch.detekt.core.extensions.handleReportingExtensions
 import io.gitlab.arturbosch.detekt.core.generateBindingContext
+import io.gitlab.arturbosch.detekt.core.profiling.RuleExecutionListenerLocator
 import io.gitlab.arturbosch.detekt.core.reporting.OutputFacade
 import io.gitlab.arturbosch.detekt.core.rules.createRuleProviders
 import io.gitlab.arturbosch.detekt.core.util.PerformanceMonitor.Phase
@@ -29,6 +32,7 @@ internal interface Lifecycle {
     val bindingProvider: (files: List<KtFile>) -> BindingContext
     val processorsProvider: () -> List<FileProcessListener>
     val ruleSetsProvider: () -> List<RuleSetProvider>
+    val ruleListenersProvider: () -> List<RuleExecutionListener>
 
     @OptIn(UnstableApi::class)
     private fun <R> measure(phase: Phase, block: () -> R): R = settings.getOrCreateMonitor().measure(phase, block)
@@ -37,16 +41,36 @@ internal interface Lifecycle {
         measure(Phase.ValidateConfig) { checkConfiguration(settings, baselineConfig) }
         val filesToAnalyze = measure(Phase.Parsing) { parsingStrategy.invoke(settings) }
         val bindingContext = measure(Phase.Binding) { bindingProvider.invoke(filesToAnalyze) }
-        val (processors, ruleSets) = measure(Phase.LoadingExtensions) {
-            processorsProvider.invoke() to ruleSetsProvider.invoke()
+        val (processors, ruleSets, ruleListeners) = measure(Phase.LoadingExtensions) {
+            Triple(
+                processorsProvider.invoke(),
+                ruleSetsProvider.invoke(),
+                ruleListenersProvider.invoke()
+            )
         }
 
         val result = measure(Phase.Analyzer) {
-            val analyzer = Analyzer(settings, ruleSets, processors)
+            val analyzer = Analyzer(settings, ruleSets, processors, ruleListeners)
+
+            // Notify rule listeners about the start of analysis
+            if (ruleListeners.isNotEmpty()) {
+                val allRules = ruleSets.flatMap { it.instance(settings.config).rules }
+                ruleListeners.forEach { it.onStart(filesToAnalyze, allRules) }
+            }
+
             processors.forEach { it.onStart(filesToAnalyze, bindingContext) }
             val findings: Map<RuleSetId, List<Finding>> = analyzer.run(filesToAnalyze, bindingContext)
-            val result: Detektion = DetektResult(findings.toSortedMap())
+            var result: Detektion = DetektResult(findings.toSortedMap())
             processors.forEach { it.onFinish(filesToAnalyze, result, bindingContext) }
+
+            // Allow rule listeners to process and augment the result
+            if (ruleListeners.isNotEmpty()) {
+                result = ruleListeners.fold(result) { acc, listener -> listener.onFinish(acc) }
+                if (analyzer.parallelDisabledForProfiling) {
+                    result.addData(RuleProfilingKeys.PARALLEL_DISABLED, true)
+                }
+            }
+
             result
         }
 
@@ -67,5 +91,7 @@ internal class DefaultLifecycle(
     override val processorsProvider: () -> List<FileProcessListener> =
         { FileProcessorLocator(settings).load() },
     override val ruleSetsProvider: () -> List<RuleSetProvider> =
-        { settings.createRuleProviders() }
+        { settings.createRuleProviders() },
+    override val ruleListenersProvider: () -> List<RuleExecutionListener> =
+        { RuleExecutionListenerLocator(settings).load() }
 ) : Lifecycle

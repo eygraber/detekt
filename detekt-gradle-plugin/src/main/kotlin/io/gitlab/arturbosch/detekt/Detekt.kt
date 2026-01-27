@@ -23,6 +23,7 @@ import io.gitlab.arturbosch.detekt.invoke.JdkHomeArgument
 import io.gitlab.arturbosch.detekt.invoke.JvmTargetArgument
 import io.gitlab.arturbosch.detekt.invoke.LanguageVersionArgument
 import io.gitlab.arturbosch.detekt.invoke.ParallelArgument
+import io.gitlab.arturbosch.detekt.invoke.ProfilingArgument
 import org.gradle.api.Action
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.Directory
@@ -117,6 +118,19 @@ abstract class Detekt @Inject constructor(
         @Internal
         get() = parallelProp.getOrElse(false)
         set(value) = parallelProp.set(value)
+
+    @get:Internal
+    internal abstract val profilingProp: Property<Boolean>
+
+    /**
+     * Enables rule-level profiling to measure execution time of individual rules.
+     * Forces sequential execution for accurate timing.
+     * Use with a custom 'profiling' report to output profiling data.
+     */
+    var profiling: Boolean
+        @Input
+        get() = profilingProp.getOrElse(false)
+        set(value) = profilingProp.set(value)
 
     @get:Internal
     internal abstract val disableDefaultRuleSetsProp: Property<Boolean>
@@ -225,6 +239,7 @@ abstract class Detekt @Inject constructor(
             DefaultReportArgument(DetektReportType.MD, mdReportFile.orNull),
             DebugArgument(debugProp.getOrElse(false)),
             ParallelArgument(parallelProp.getOrElse(false)),
+            ProfilingArgument(profilingProp.getOrElse(false)),
             BuildUponDefaultConfigArgument(buildUponDefaultConfigProp.getOrElse(false)),
             AllRulesArgument(allRulesProp.getOrElse(false)),
             AutoCorrectArgument(autoCorrectProp.getOrElse(false)),
